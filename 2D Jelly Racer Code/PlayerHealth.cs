@@ -1,8 +1,18 @@
+using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 
-[CreateAssetMenu(fileName = "PlayerHealth", menuName = "Health/PlayerHealth")]
-public class PlayerHealth : ScriptableObject
+public class PlayerHealth : MonoBehaviour
 {
-    public float currentHealth;
-    public float maxHealth;
+   public FloatVariable health, maxHealth;
+
+   public void TakeDamage(float amount)
+   {
+    health.value -= amount;
+    if(health.value <= 0)
+    {
+        health.value = 0;
+        Debug.Log("You're Dead");
+    }
+   }
 }
