@@ -13,6 +13,7 @@ namespace JellyController
         private FrameInput frameInput;
         private Vector2 frameVelocity;
         private bool cachedQueryStartInColliders;
+        public Joystick joystick;
 
         #region Interface
 
@@ -38,27 +39,31 @@ namespace JellyController
             GatherInput();
         }
 
-        private void GatherInput()
+       private void GatherInput()
         {
-            frameInput = new FrameInput
-            {
-                JumpDown = Input.GetButtonDown("Jump") || Input.GetKeyDown(KeyCode.C),
-                JumpHeld = Input.GetButton("Jump") || Input.GetKey(KeyCode.C),
-                Move = new Vector2(Input.GetAxisRaw("Horizontal"), Input.GetAxisRaw("Vertical"))
-            };
+        // Keyboard input
+        frameInput = new FrameInput
+        {
+            JumpDown = Input.GetButtonDown("Jump") || Input.GetKeyDown(KeyCode.C),
+            JumpHeld = Input.GetButton("Jump") || Input.GetKey(KeyCode.C),
+            Move = new Vector2(joystick.Horizontal, joystick.Vertical)
+        };
 
-            if (stats.SnapInput)
-            {
-                frameInput.Move.x = Mathf.Abs(frameInput.Move.x) < stats.HorizontalDeadZoneThreshold ? 0 : Mathf.Sign(frameInput.Move.x);
-                frameInput.Move.y = Mathf.Abs(frameInput.Move.y) < stats.VerticalDeadZoneThreshold ? 0 : Mathf.Sign(frameInput.Move.y);
-            }
-
-            if (frameInput.JumpDown)
-            {
-                jumpToConsume = true;
-                timeJumpWasPressed = time;
-            }
+        // Apply dead zone and snap input logic if desired
+        if (stats.SnapInput)
+        {
+        frameInput.Move.x = Mathf.Abs(frameInput.Move.x) < stats.HorizontalDeadZoneThreshold ? 0 : Mathf.Sign(frameInput.Move.x);
+        frameInput.Move.y = Mathf.Abs(frameInput.Move.y) < stats.VerticalDeadZoneThreshold ? 0 : Mathf.Sign(frameInput.Move.y);
         }
+
+        if (frameInput.JumpDown)
+        {
+        jumpToConsume = true;
+        timeJumpWasPressed = time;
+        
+        }
+}
+
 
         private void FixedUpdate()
         {
@@ -77,35 +82,38 @@ namespace JellyController
         private bool grounded;
 
         private void CheckCollisions()
-        {
-            Physics2D.queriesStartInColliders = false;
+{
+    Physics2D.queriesStartInColliders = false;
 
-            // Ground and Ceiling
-            bool groundHit = Physics2D.CapsuleCast(col.bounds.center, col.size, col.direction, 0, Vector2.down, stats.GrounderDistance, ~ stats.PlayerLayer);
-            bool ceilingHit = Physics2D.CapsuleCast(col.bounds.center, col.size, col.direction, 0, Vector2.up, stats.GrounderDistance, ~ stats.PlayerLayer);
+    // Ground and Ceiling
+    bool groundHit = Physics2D.CapsuleCast(col.bounds.center, col.size, col.direction, 0, Vector2.down, stats.GrounderDistance, ~ stats.PlayerLayer);
+    bool ceilingHit = Physics2D.CapsuleCast(col.bounds.center, col.size, col.direction, 0, Vector2.up, stats.GrounderDistance, ~ stats.PlayerLayer);
 
-            // Hit a Ceiling
-            if (ceilingHit) frameVelocity.y = Mathf.Min(0, frameVelocity.y);
+    // Hit a Ceiling
+    if (ceilingHit) frameVelocity.y = Mathf.Min(0, frameVelocity.y);
 
-            // Landed on the Ground
-            if (!grounded && groundHit)
-            {
-                grounded = true;
-                coyoteUsable = true;
-                bufferedJumpUsable = true;
-                endedJumpEarly = false;
-                GroundedChanged?.Invoke(true, Mathf.Abs(frameVelocity.y));
-            }
-            // Left the Ground
-            else if (grounded && !groundHit)
-            {
-                grounded = false;
-                frameLeftGrounded = time;
-                GroundedChanged?.Invoke(false, 0);
-            }
+    // Landed on the Ground
+    if (!grounded && groundHit)
+    {
+        grounded = true;
+        coyoteUsable = true;
+        bufferedJumpUsable = true;
+        endedJumpEarly = false;
+        GroundedChanged?.Invoke(true, Mathf.Abs(frameVelocity.y));
 
-            Physics2D.queriesStartInColliders = cachedQueryStartInColliders;
-        }
+        // Reset the canJump flag when the player lands on the ground
+        canJump = true;
+    }
+    // Left the Ground
+    else if (grounded && !groundHit)
+    {
+        grounded = false;
+        frameLeftGrounded = time;
+        GroundedChanged?.Invoke(false, 0);
+    }
+
+    Physics2D.queriesStartInColliders = cachedQueryStartInColliders;
+}
 
         #endregion
 
@@ -120,8 +128,23 @@ namespace JellyController
 
         private bool HasBufferedJump => bufferedJumpUsable && time < timeJumpWasPressed + stats.JumpBuffer;
         private bool CanUseCoyote => coyoteUsable && !grounded && time < frameLeftGrounded + stats.CoyoteTime;
+        
 
-        private void HandleJump()
+        private bool canJump = true; // Declare canJump as a class member
+
+        // Jump method without private modifier
+        public void Jump()
+    {
+        if (canJump) // Only allow jump if the player is allowed to jump
+        {
+            jumpToConsume = true;
+            timeJumpWasPressed = time;
+            canJump = false; // Set flag to prevent further jumping until landing
+        }
+    }
+
+
+        public void HandleJump()
         {
             if (!endedJumpEarly && !grounded && !frameInput.JumpHeld && rb.velocity.y > 0) endedJumpEarly = true;
 
@@ -132,7 +155,7 @@ namespace JellyController
             jumpToConsume = false;
         }
 
-        private void ExecuteJump()
+        public void ExecuteJump()
         {
             endedJumpEarly = false;
             timeJumpWasPressed = 0;
